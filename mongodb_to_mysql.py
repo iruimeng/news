@@ -42,16 +42,22 @@ IMAGE_SIZES = {
 IMAGE_SAVE_DIR = "/Users/jiangqiurong/Desktop"
 
 def saveToMysql(mysqlConn, data):
-    get_sql = "select id from articles where task_id=%{task_id}s"
+    get_sql = "select id from articles where task_id=%s"
     article_id = None
     try:
         cursor = mysqlConn.cursor(dictionary=True)
+        cursor.execute(get_sql, (data["task_id"],))
         row = cursor.fetchone()
         if row:
             article_id = row["id"]
         cursor.close()
     except Exception, e:
         print "try to get article info by task: %s, error: %s" %(data["task_id"], str(e))
+
+    if article_id != None:
+        print "get article: %d, by task: %s" % (article_id, data["task_id"])
+    else:
+        print "new article, task: %s" % data["task_id"]
 
     sql = "insert into articles (task_id, site_label, author, title, article, url, comment_count, hot, publish_time, create_time, update_time) values(%(task_id)s, %(site_label)s, %(author)s, %(title)s, %(article)s, %(url)s, %(comment_count)s, %(hot)s, %(publish_time)s, %(create_time)s, %(update_time)s ) on duplicate key update task_id=values(task_id), site_label=values(site_label), author=values(author), title=values(title), article=values(article), url=values(url), comment_count=values(comment_count), hot=values(hot), publish_time=values(publish_time), update_time=values(update_time)"
     try:
@@ -79,7 +85,14 @@ def readCrawledArticles(mongoClient, mysqlConn):
             result = json.loads(doc["result"])
             content_imgs = result.get("content_imgs", [])
             title = result["title"]
-            dt = parseDateStr(result.get("date", ""))
+            dateStr = result.get("date", "")
+            dt = parseDateStr(dateStr)
+            if dt == None:
+                print "<%s:%s> parse `%s` error: no supported format" % (collection_name, doc["taskid"], dateStr)
+            comment_count = result.get("comment_count", "")
+            comment_count = 0 if comment_count == "" else comment_count.replace(",", "")
+            hot = result.get("hot", "")
+            hot = 0 if hot == "" else hot.replace(",", "")
             data = {
                 "site_label":collection_name,
                 "task_id": doc["taskid"],
@@ -87,8 +100,8 @@ def readCrawledArticles(mongoClient, mysqlConn):
                 "title": title,
                 "author": result["author"],
                 "article": json.dumps(result["article"]),
-                "comment_count": 0 if result.get("comment_count", "") == "" else result["comment_count"],
-                "hot": result.get("hot", 0),
+                "comment_count": comment_count,
+                "hot": hot,
                 "publish_time": dt.strftime("%Y-%m-%d %H:%M:%S") if dt != None else None
             }
             article_id = saveToMysql(mysqlConn, data)

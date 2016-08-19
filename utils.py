@@ -6,9 +6,9 @@ import os
 from urlparse import urlparse
 from PIL import Image
 import cStringIO
+from dateutil.parser import parse as parseDateString
 '''
 无日期:
-businessinsider, salon_politics
 '''
 #
 def parseDateStr(dateStr):
@@ -32,7 +32,13 @@ def parseDateStr(dateStr):
                 ret = datetime.strptime(dateStr, fmt)
                 break
             except ValueError, e:
-                print e
+                print "parse `%s` error: %s" % (dateStr,e)
+        if ret == None:
+            #最后求助dateutil
+            try:
+                ret = parseDateString(dateStr, fuzzy=True)
+            except Exception, e:
+                print "parse `%s` error:%s" % (dateStr, e)
     return ret
 
 
