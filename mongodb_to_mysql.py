@@ -6,6 +6,11 @@ import json
 from datetime import datetime
 from utils import parseDateStr, ImageProcessor
 import sys
+import config
+import logging, logging.config
+
+logging.config.dictConfig(config.LOGGING)
+logger = logging.getLogger("sync_news_test")
 
 '''
 create table articles (
@@ -32,14 +37,6 @@ create table article_images (
   UNIQUE  KEY (article_id, type)
 );
 '''
-
-IMAGE_SIZES = {
-    "large": (360,150),
-    "middle": (328, 185),
-    "small": (113, 80)
-}
-
-IMAGE_SAVE_DIR = "/Users/jiangqiurong/Desktop"
 
 def saveToMysql(mysqlConn, data):
     get_sql = "select id from articles where task_id=%s"
@@ -73,15 +70,15 @@ def saveToMysql(mysqlConn, data):
         print "insert task:%s error:%s" % (data["task_id"], str(e))
     return article_id
 
-def readCrawledArticles(mongoClient, mysqlConn):
+def readCrawledArticles(mongoClient, mysqlConn, image_save_dir, image_sizes):
     result_db = mongoClient.resultdb
 
     for collection_name in  result_db.collection_names():
         if collection_name == "test":
             continue
-        img_processor = ImageProcessor(IMAGE_SAVE_DIR, collection_name, IMAGE_SIZES)
-        print "process %s" % collection_name
+        img_processor = ImageProcessor(image_save_dir, collection_name, image_sizes)
         for doc in result_db[collection_name].find():
+            print "process %s, taskid:%s" % (collection_name, doc["taskid"])
             result = json.loads(doc["result"])
             content_imgs = result.get("content_imgs", [])
             main_img = result.get("img", "")
@@ -91,9 +88,9 @@ def readCrawledArticles(mongoClient, mysqlConn):
             if dt == None:
                 print "<%s:%s> parse `%s` error: no supported format" % (collection_name, doc["taskid"], dateStr)
             comment_count = result.get("comment_count", "")
-            comment_count = 0 if comment_count == "" else comment_count.replace(",", "")
+            comment_count = 0 if comment_count == "" else str(comment_count).replace(",", "")
             hot = result.get("hot", "")
-            hot = 0 if hot == "" else hot.replace(",", "")
+            hot = 0 if hot == "" else str(hot).replace(",", "")
             data = {
                 "site_label":collection_name,
                 "task_id": doc["taskid"],
@@ -134,8 +131,8 @@ def saveArticleImages(mysqlConn, img_urls, main_img, img_processor, article_id, 
 
 
 if __name__ == "__main__":
-    mongoClient = pymongo.MongoClient("mongodb://47.88.194.127:27017/", connect=False)
-    mysqlConn = mysql.connector.connect(user="zhaozhi", password="zzhao", host="47.88.194.127", database="news_test", charset="utf8")
+    mongoClient = pymongo.MongoClient(config.mongodb_conn_string, connect=False)
+    mysqlConn = mysql.connector.connect(**config.mysql_config)
 
     if mongoClient == None:
         print "connect to mongodb error"
@@ -143,7 +140,7 @@ if __name__ == "__main__":
     if mysqlConn == None:
         print "connect to mysql error"
         sys.exit(1)
-    readCrawledArticles(mongoClient, mysqlConn)
+    readCrawledArticles(mongoClient, mysqlConn, config.IMAGE_SAVE_DIR, config.IMAGE_SIZES)
 
     mysqlConn.close()
     mongoClient.close()

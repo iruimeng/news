@@ -8,7 +8,6 @@ from PIL import Image
 import cStringIO
 from dateutil.parser import parse as parseDateString
 '''
-无日期:
 '''
 #
 def parseDateStr(dateStr):
@@ -32,13 +31,13 @@ def parseDateStr(dateStr):
                 ret = datetime.strptime(dateStr, fmt)
                 break
             except ValueError, e:
-                print "parse `%s` error: %s" % (dateStr,e)
+                print u"parse `%s` error: %s" % (dateStr,e)
         if ret == None:
             #最后求助dateutil
             try:
                 ret = parseDateString(dateStr, fuzzy=True)
             except Exception, e:
-                print "parse `%s` error:%s" % (dateStr, e)
+                print u"parse `%s` error:%s" % (dateStr, e)
     return ret
 
 
@@ -60,12 +59,18 @@ class ImageProcessor(object):
         resp = None
         ret = {}
         try:
-            resp = requests.get(url)
+            headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.152 Safari/537.36"}
+            resp = requests.get(url, headers=headers)
         except Exception, e:
             print "read image from %s, error: %s" % (url, str(e))
             return ret
         if resp.status_code == 200:
-            img = Image.open(cStringIO.StringIO(resp.content))
+            img = None
+            try:
+                img = Image.open(cStringIO.StringIO(resp.content))
+            except Exception, e:
+                print "open image from `%s` error: %s" % (url, e)
+                return ret
             #获取扩展名
             urlobj = urlparse(url)
             fname, ext = os.path.splitext(urlobj.path)
@@ -101,11 +106,13 @@ class ImageProcessor(object):
         origin_width, origin_height = imageObj.size
 
         resize_width, resize_height = origin_width, origin_height
-        if origin_height <= target_height:
-            #原图比较低
+        target_ratio = target_width * 1.0 / target_height
+        origin_ratio = origin_width * 1.0 / origin_height
+        if origin_ratio > target_ratio:
+            #原图比较宽
             resize_width = int(1.0 * resize_height * target_width / target_height)
-        else:
-            #原图较窄或宽高都大于目标
+        elif origin_ratio < target_ratio:
+            #原图比较高
             resize_height = int(round(1.0 * resize_width * target_height / target_width, 0))
 
         left = max( (origin_width - resize_width) / 2, 0)
@@ -117,3 +124,13 @@ class ImageProcessor(object):
         #缩放
         sub = imageObj.resize((target_width, target_height), Image.LANCZOS)
         return  sub
+
+if __name__ == "__main__":
+    IMAGE_SIZES = {
+        "large": (360, 150),
+        "middle": (328, 185),
+        "small": (113, 80)
+    }
+    img_processor = ImageProcessor("./", target_sizes=IMAGE_SIZES)
+    img_processor.save("http://2d0yaz2jiom3c6vy7e7e5svk.wpengine.netdna-cdn.com/wp-content/uploads/2016/08/Freeport-Bakery-trans-Ken-cake-KTXL-TV-800x430.jpg", fname_prefix="test")
+    img_processor.save("http://static2.businessinsider.com/image/57b3efdddb5ce94f008b724f-1500/gettyimages-590520338_a.jpg", fname_prefix="trump")
