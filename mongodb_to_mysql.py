@@ -7,10 +7,9 @@ from datetime import datetime
 from utils import parseDateStr, ImageProcessor
 import sys
 import config
-import logging, logging.config
+import time
 
-logging.config.dictConfig(config.LOGGING)
-logger = logging.getLogger("sync_news_test")
+logger = config.logger
 
 '''
 create table articles (
@@ -49,12 +48,12 @@ def saveToMysql(mysqlConn, data):
             article_id = row["id"]
         cursor.close()
     except Exception, e:
-        print "try to get article info by task: %s, error: %s" %(data["task_id"], str(e))
+        logger.error("try to get article info by task: %s, error: %s" , data["task_id"], str(e) )
 
     if article_id != None:
-        print "get article: %d, by task: %s" % (article_id, data["task_id"])
+        logger.info( "get article: %d, by task: %s", article_id, data["task_id"])
     else:
-        print "new article, task: %s" % data["task_id"]
+        logger.info( "new article, task: %s", data["task_id"] )
 
     sql = "insert into articles (task_id, site_label, author, title, article, url, comment_count, hot, publish_time, create_time, update_time) values(%(task_id)s, %(site_label)s, %(author)s, %(title)s, %(article)s, %(url)s, %(comment_count)s, %(hot)s, %(publish_time)s, %(create_time)s, %(update_time)s ) on duplicate key update task_id=values(task_id), site_label=values(site_label), author=values(author), title=values(title), article=values(article), url=values(url), comment_count=values(comment_count), hot=values(hot), publish_time=values(publish_time), update_time=values(update_time)"
     try:
@@ -67,18 +66,19 @@ def saveToMysql(mysqlConn, data):
         cursor.close()
         mysqlConn.commit()
     except Exception, e:
-        print "insert task:%s error:%s" % (data["task_id"], str(e))
+        logger.error( "insert task:%s error:%s", data["task_id"], str(e))
     return article_id
 
-def readCrawledArticles(mongoClient, mysqlConn, image_save_dir, image_sizes):
+def readCrawledArticles(mongoClient, mysqlConn, image_save_dir, image_sizes, before_hours=None):
     result_db = mongoClient.resultdb
 
     for collection_name in  result_db.collection_names():
         if collection_name == "test":
             continue
         img_processor = ImageProcessor(image_save_dir, collection_name, image_sizes)
-        for doc in result_db[collection_name].find():
-            print "process %s, taskid:%s" % (collection_name, doc["taskid"])
+        cond = {} if before_hours == None else {"updatetime": {"$gte": time.time() - before_hours * 3600}}
+        for doc in result_db[collection_name].find(cond):
+            logger.info( "process %s, taskid:%s", collection_name, doc["taskid"])
             result = json.loads(doc["result"])
             content_imgs = result.get("content_imgs", [])
             main_img = result.get("img", "")
@@ -86,7 +86,7 @@ def readCrawledArticles(mongoClient, mysqlConn, image_save_dir, image_sizes):
             dateStr = result.get("date", "")
             dt = parseDateStr(dateStr)
             if dt == None:
-                print "<%s:%s> parse `%s` error: no supported format" % (collection_name, doc["taskid"], dateStr)
+                logger.info( "<%s:%s> parse `%s` error: no supported format", collection_name, doc["taskid"], dateStr)
             comment_count = result.get("comment_count", "")
             comment_count = 0 if comment_count == "" else str(comment_count).replace(",", "")
             hot = result.get("hot", "")
@@ -103,7 +103,7 @@ def readCrawledArticles(mongoClient, mysqlConn, image_save_dir, image_sizes):
                 "publish_time": dt.strftime("%Y-%m-%d %H:%M:%S") if dt != None else None
             }
             article_id = saveToMysql(mysqlConn, data)
-            print article_id
+            logger.info("article id: %d", article_id)
             if (len(content_imgs) > 0 or main_img != "") and article_id != None:
                 saveArticleImages(mysqlConn, content_imgs, main_img, img_processor, article_id, doc["taskid"])
 
@@ -126,21 +126,24 @@ def saveArticleImages(mysqlConn, img_urls, main_img, img_processor, article_id, 
                 cursor.close()
                 mysqlConn.commit()
             except Exception, e:
-                print "save image info %s, error:%s" % (json.dumps(data), str(e))
+                logger.error( "save image info %s, error:%s", json.dumps(data), str(e))
 
 
 
 if __name__ == "__main__":
+    before_hours = None
+    if len(sys.argv) == 2:
+        before_hours = int(sys.argv[1])
     mongoClient = pymongo.MongoClient(config.mongodb_conn_string, connect=False)
     mysqlConn = mysql.connector.connect(**config.mysql_config)
 
     if mongoClient == None:
-        print "connect to mongodb error"
+        logger.error( "connect to mongodb error" )
         sys.exit(1)
     if mysqlConn == None:
-        print "connect to mysql error"
+        logger.error( "connect to mysql error" )
         sys.exit(1)
-    readCrawledArticles(mongoClient, mysqlConn, config.IMAGE_SAVE_DIR, config.IMAGE_SIZES)
+    readCrawledArticles(mongoClient, mysqlConn, config.IMAGE_SAVE_DIR, config.IMAGE_SIZES, before_hours)
 
     mysqlConn.close()
     mongoClient.close()

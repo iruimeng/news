@@ -1,4 +1,5 @@
 #-*- coding:utf-8 -*-
+import logging.config
 
 IMAGE_SIZES = {
     "large": (360,150),
@@ -56,3 +57,6 @@ LOGGING = {
         },
     }
 }
+
+logging.config.dictConfig(LOGGING)
+logger = logging.getLogger("sync_news_test")

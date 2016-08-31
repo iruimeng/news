@@ -7,8 +7,7 @@ from urlparse import urlparse
 from PIL import Image
 import cStringIO
 from dateutil.parser import parse as parseDateString
-'''
-'''
+from config import logger
 #
 def parseDateStr(dateStr):
     ret = None
@@ -31,13 +30,13 @@ def parseDateStr(dateStr):
                 ret = datetime.strptime(dateStr, fmt)
                 break
             except ValueError, e:
-                print u"parse `%s` error: %s" % (dateStr,e)
+                logger.warn( u"parse `%s` error: %s", dateStr,e)
         if ret == None:
             #最后求助dateutil
             try:
                 ret = parseDateString(dateStr, fuzzy=True)
             except Exception, e:
-                print u"parse `%s` error:%s" % (dateStr, e)
+                logger.warn( u"parse `%s` error:%s", dateStr, e)
     return ret
 
 
@@ -62,14 +61,14 @@ class ImageProcessor(object):
             headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.152 Safari/537.36"}
             resp = requests.get(url, headers=headers)
         except Exception, e:
-            print "read image from %s, error: %s" % (url, str(e))
+            logger.error( "read image from %s, error: %s", url, str(e))
             return ret
         if resp.status_code == 200:
             img = None
             try:
                 img = Image.open(cStringIO.StringIO(resp.content))
             except Exception, e:
-                print "open image from `%s` error: %s" % (url, e)
+                logger.error( "open image from `%s` error: %s", url, e)
                 return ret
             #获取扩展名
             urlobj = urlparse(url)
@@ -90,16 +89,16 @@ class ImageProcessor(object):
                         sub_img.save(fpath)
                         ret[sz_name] = os.path.join(self.relative_path, fname)
                     except Exception, e:
-                        print "save %s error: %s" % (fpath, str(e))
+                        logger.error("save %s error: %s", fpath, str(e))
             fname = "%s.%s" % (fname_prefix.rstrip("-"), ext)
             fpath = os.path.join(self.target_dir, fname )
             try:
                 img.save( fpath )
                 ret["origin"] = os.path.join(self.relative_path, fname)
             except Exception, e:
-                print "save %s error: %s" % (fpath, str(e))
+                logger.error( "save %s error: %s", fpath, str(e))
         else:
-            print "get image '%s' failed, status code:%d" % (url, resp.status_code)
+            logger.error( "get image '%s' failed, status code:%d", url, resp.status_code)
         return ret
 
     def cropImage(self, imageObj, target_width, target_height ):
