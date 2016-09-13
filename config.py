@@ -2,9 +2,9 @@
 import logging.config
 
 IMAGE_SIZES = {
-    "large": (360,150),
-    "middle": (328, 185),
-    "small": (113, 80)
+    "large": (680,382),
+    "middle": (720, 0),
+    "small": (226,150 )
 }
 
 IMAGE_SAVE_DIR = "/Users/jiangqiurong/Desktop"

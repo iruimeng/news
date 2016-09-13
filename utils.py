@@ -82,7 +82,10 @@ class ImageProcessor(object):
             if self.target_sizes != None:
                 #截图
                 for sz_name, size in self.target_sizes.iteritems():
-                    sub_img = self.cropImage(img.copy(), size[0], size[1])
+                    if sz_name =="middle":
+                        sub_img = self.resizeImage(img.copy(), size[0])
+                    else:
+                        sub_img = self.cropImage(img.copy(), size[0], size[1])
                     fname = "%s%s.%s"%(fname_prefix, sz_name, ext)
                     fpath = os.path.join(self.target_dir, fname)
                     try:
@@ -124,11 +127,23 @@ class ImageProcessor(object):
         sub = imageObj.resize((target_width, target_height), Image.LANCZOS)
         return  sub
 
+    def resizeImage(self, imageObj, target_width):
+        origin_width, origin_height = imageObj.size
+
+        if origin_width<target_width:
+            return imageObj
+        else:
+            target_height = origin_height * target_width / origin_width
+
+        #
+        sub = imageObj.resize((target_width, target_height), Image.LANCZOS)
+        return  sub
+
 if __name__ == "__main__":
     IMAGE_SIZES = {
-        "large": (360, 150),
-        "middle": (328, 185),
-        "small": (113, 80)
+        "large": (680, 382),
+        "middle": (720, 0),
+        "small": (113*2, 75*2),
     }
     img_processor = ImageProcessor("./", target_sizes=IMAGE_SIZES)
     img_processor.save("http://2d0yaz2jiom3c6vy7e7e5svk.wpengine.netdna-cdn.com/wp-content/uploads/2016/08/Freeport-Bakery-trans-Ken-cake-KTXL-TV-800x430.jpg", fname_prefix="test")

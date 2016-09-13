@@ -55,7 +55,7 @@ def saveToMysql(mysqlConn, data):
     else:
         logger.info( "new article, task: %s", data["task_id"] )
 
-    sql = "insert into articles (task_id, site_label, author, title, article, url, comment_count, hot, publish_time, create_time, update_time) values(%(task_id)s, %(site_label)s, %(author)s, %(title)s, %(article)s, %(url)s, %(comment_count)s, %(hot)s, %(publish_time)s, %(create_time)s, %(update_time)s ) on duplicate key update task_id=values(task_id), site_label=values(site_label), author=values(author), title=values(title), article=values(article), url=values(url), comment_count=values(comment_count), hot=values(hot), publish_time=values(publish_time), update_time=values(update_time)"
+    sql = "insert into articles (task_id, site_label, author, title, article, url, comment_count, hot, publish_time, create_time, update_time, embedded_tweets, embedded_instagrams) values(%(task_id)s, %(site_label)s, %(author)s, %(title)s, %(article)s, %(url)s, %(comment_count)s, %(hot)s, %(publish_time)s, %(create_time)s, %(update_time)s, %(embedded_tweets)s, %(embedded_instagrams)s ) on duplicate key update task_id=values(task_id), site_label=values(site_label), author=values(author), title=values(title), article=values(article), url=values(url), comment_count=values(comment_count), hot=values(hot), publish_time=values(publish_time), update_time=values(update_time), embedded_tweets=values(embedded_tweets), embedded_instagrams=values(embedded_instagrams) "
     try:
         time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         data["create_time"] = data["update_time"] = time_str
@@ -91,6 +91,12 @@ def readCrawledArticles(mongoClient, mysqlConn, image_save_dir, image_sizes, bef
             comment_count = 0 if comment_count == "" else str(comment_count).replace(",", "")
             hot = result.get("hot", "")
             hot = 0 if hot == "" else str(hot).replace(",", "")
+            embedded_tweets = "";
+            if "EmbeddedTweets" in result and isinstance(result["EmbeddedTweets"], list):
+                embedded_tweets = ",".join(result["EmbeddedTweets"])
+            embedded_instagrams = "";
+            if "EmbeddedInstagrams" in result and isinstance(result["EmbeddedInstagrams"], list):
+                embedded_instagrams = ",".join(result["EmbeddedInstagrams"])
             data = {
                 "site_label":collection_name,
                 "task_id": doc["taskid"],
@@ -100,7 +106,9 @@ def readCrawledArticles(mongoClient, mysqlConn, image_save_dir, image_sizes, bef
                 "article": json.dumps(result["article"]),
                 "comment_count": comment_count,
                 "hot": hot,
-                "publish_time": dt.strftime("%Y-%m-%d %H:%M:%S") if dt != None else None
+                "publish_time": dt.strftime("%Y-%m-%d %H:%M:%S") if dt != None else None,
+                "embedded_tweets": embedded_tweets,
+                "embedded_instagrams": embedded_instagrams
             }
             article_id = saveToMysql(mysqlConn, data)
             logger.info("article id: %d", article_id)
